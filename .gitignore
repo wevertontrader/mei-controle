@@ -1,0 +1,28 @@
+# Dependências
+node_modules/
+server/node_modules/
+
+# Build
+dist/
+build/
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Banco de dados (não versionar dados em produção)
+server/database/*.sqlite
+server/database/*.sqlite-shm
+server/database/*.sqlite-wal
+
+# Logs e cache
+*.log
+.npm
+.cache
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

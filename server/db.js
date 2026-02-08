@@ -1,0 +1,233 @@
+const Database = require('better-sqlite3')
+const path = require('path')
+const fs = require('fs')
+
+const dbDir = path.join(__dirname, 'database')
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true })
+
+const dbPath = path.join(dbDir, 'meipro.sqlite')
+const db = new Database(dbPath)
+
+db.pragma('journal_mode = WAL')
+db.pragma('foreign_keys = ON')
+
+function initDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      senha TEXT NOT NULL,
+      empresa TEXT NOT NULL,
+      trial_ends_at TEXT NOT NULL,
+      role TEXT DEFAULT 'empresa',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS entradas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      valor REAL NOT NULL,
+      descricao TEXT,
+      data TEXT NOT NULL,
+      status TEXT DEFAULT 'Recebido',
+      forma_pagamento TEXT,
+      cliente_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS gastos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      valor REAL NOT NULL,
+      descricao TEXT,
+      categoria TEXT,
+      data TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS custos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      valor REAL NOT NULL,
+      descricao TEXT,
+      vencimento TEXT NOT NULL,
+      pago INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS poupanca (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      valor REAL NOT NULL,
+      descricao TEXT,
+      data TEXT NOT NULL,
+      tipo TEXT DEFAULT 'Poupança',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS clientes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      nome TEXT,
+      email TEXT,
+      whatsapp TEXT,
+      telefone TEXT,
+      documento TEXT,
+      endereco TEXT,
+      nome_empresa TEXT,
+      funcao TEXT,
+      site TEXT,
+      instagram TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS vendas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      cliente_id INTEGER,
+      valor REAL NOT NULL,
+      data TEXT NOT NULL,
+      descricao TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS produtos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      nome TEXT NOT NULL,
+      codigo TEXT,
+      preco_custo REAL DEFAULT 0,
+      preco REAL NOT NULL,
+      estoque_atual INTEGER DEFAULT 0,
+      unidade TEXT DEFAULT 'UN',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS estoque_movimentacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      produto_id INTEGER NOT NULL,
+      quantidade INTEGER NOT NULL,
+      tipo TEXT NOT NULL,
+      descricao TEXT,
+      data TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (produto_id) REFERENCES produtos(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS tarefas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      titulo TEXT NOT NULL,
+      descricao TEXT,
+      data_limite TEXT,
+      concluida INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_entradas_user_data ON entradas(user_id, data);
+    CREATE INDEX IF NOT EXISTS idx_gastos_user_data ON gastos(user_id, data);
+    CREATE INDEX IF NOT EXISTS idx_custos_user ON custos(user_id);
+    CREATE INDEX IF NOT EXISTS idx_vendas_user_data ON vendas(user_id, data);
+
+    CREATE TABLE IF NOT EXISTS planos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      preco REAL NOT NULL,
+      dias INTEGER NOT NULL,
+      periodo TEXT NOT NULL,
+      features TEXT,
+      destaque INTEGER DEFAULT 0,
+      economia TEXT,
+      ativo INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS configuracoes (
+      chave TEXT PRIMARY KEY,
+      valor TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS notas_fiscais (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      numero TEXT NOT NULL,
+      data TEXT NOT NULL,
+      cliente_id INTEGER,
+      cliente_nome TEXT,
+      descricao TEXT,
+      status TEXT DEFAULT 'Pendente',
+      valor REAL NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS das_mensal (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      referencia TEXT NOT NULL,
+      vencimento TEXT NOT NULL,
+      valor REAL DEFAULT 0,
+      pago INTEGER DEFAULT 0,
+      data_pagamento TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `)
+
+  try { db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'empresa'`) } catch (_) {}
+  const clienteCols = ['whatsapp', 'nome_empresa', 'funcao', 'site', 'instagram']
+  try { db.exec(`ALTER TABLE produtos ADD COLUMN preco_custo REAL DEFAULT 0`) } catch (_) {}
+  try { db.exec(`ALTER TABLE entradas ADD COLUMN status TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE poupanca ADD COLUMN tipo TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE entradas ADD COLUMN forma_pagamento TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE entradas ADD COLUMN cliente_id INTEGER`) } catch (_) {}
+  clienteCols.forEach(col => {
+    try { db.exec(`ALTER TABLE clientes ADD COLUMN ${col} TEXT`) } catch (_) {}
+  })
+  try { db.exec(`ALTER TABLE tarefas ADD COLUMN hora TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE tarefas ADD COLUMN tipo TEXT DEFAULT 'Trabalho'`) } catch (_) {}
+  const userPerfilCols = ['cpf', 'whatsapp', 'cnpj', 'logotipo', 'plano']
+  userPerfilCols.forEach(col => {
+    try { db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`) } catch (_) {}
+  })
+
+  const superAdmin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@meicontrole.com')
+  if (!superAdmin) {
+    const bcrypt = require('bcryptjs')
+    const hash = bcrypt.hashSync('admin123', 10)
+    const trialEnds = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    db.prepare(`
+      INSERT INTO users (nome, email, senha, empresa, trial_ends_at, role) VALUES (?, ?, ?, ?, ?, ?)
+    `).run('Super Admin', 'admin@meicontrole.com', hash, 'Sistema', trialEnds, 'super_admin')
+  } else {
+    db.prepare("UPDATE users SET role = 'super_admin' WHERE email = ?").run('admin@meicontrole.com')
+  }
+
+  const planosCount = db.prepare('SELECT COUNT(*) as c FROM planos').get()?.c || 0
+  if (planosCount === 0) {
+    db.prepare(`
+      INSERT INTO planos (nome, slug, preco, dias, periodo, features, destaque, economia) VALUES
+      ('Mensal', 'mensal', 29.90, 30, 'mês', '["Acesso completo ao sistema","Suporte por e-mail","Backup automático"]', 0, NULL),
+      ('Anual', 'anual', 249.90, 365, 'ano', '["Tudo do plano Mensal","12 meses pelo preço de 10","Prioridade no suporte"]', 1, 'Economize 2 meses')
+    `).run()
+  }
+}
+
+initDatabase()
+
+module.exports = db
