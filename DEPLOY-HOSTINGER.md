@@ -14,6 +14,115 @@ Se você estiver na hospedagem **shared** (apenas PHP/cPanel), não é possível
 
 ---
 
+## 1.1 Instalação rápida na VPS (terminal)
+
+Se você tem uma **VPS Linux** com SSH, pode instalar tudo com um instalador:
+
+```bash
+# Conectar na VPS (ssh usuario@ip-da-vps), depois:
+git clone https://github.com/wevertontrader/mei-controle.git
+cd mei-controle
+# Confirme que está na pasta certa (deve listar install.sh, server/, package.json):
+ls
+chmod +x install.sh
+./install.sh
+```
+
+**Importante:** rode `./install.sh` na pasta do repositório (a que contém `install.sh`, `package.json` e a pasta `server`). Se estiver em `mei-controle/mei-controle`, volte com `cd ..`.
+
+**Se aparecer erro** `bad interpreter: /bin/bash^M` (fim de linha Windows), corrija no servidor:
+```bash
+sed -i 's/\r$//' install.sh
+./install.sh
+```
+(O repositório já tem `.gitattributes` para que novos clones usem fim de linha Unix.)
+
+O script `install.sh` (VPS):
+- Verifica o Node.js 18+
+- Executa **`npm run install:production -- --base-url=...`**, que instala dependências na raiz, gera o `dist/`, instala o `server/` com `--omit=dev`, cria `.env` se ainda não existir (com `JWT_SECRET` aleatório) e valida o build
+- Se tiver PM2 instalado, inicia a aplicação com PM2
+
+**Instalador único (recomendado também no build da Hostinger):**
+
+```bash
+npm run install:production
+```
+
+Na Hostinger, se **todas** as variáveis (`NODE_ENV`, `JWT_SECRET`, `BASE_URL`, etc.) estiverem só no painel e você **não** quiser criar arquivo `.env` no servidor de build, use:
+
+```bash
+npm run install:production -- --skip-env
+```
+
+Depois da instalação, se precisar alterar a URL, edite `BASE_URL` no `.env`. Configure Nginx (ou proxy) para a porta **3001**.
+
+### 1.2 Configurar Nginx na VPS (evitar 404)
+
+Se ao acessar o domínio (ex.: `mei.digitalavance.com.br`) aparecer **404 Not Found** do Nginx, é porque ele ainda não está repassando as requisições para o app na porta 3001. Faça o seguinte **na VPS**:
+
+1. **Criar o arquivo de configuração do site** (troque `mei.digitalavance.com.br` pelo seu domínio):
+
+```bash
+sudo nano /etc/nginx/sites-available/mei-controle
+```
+
+Cole o conteúdo abaixo (ajuste o `server_name` se for outro domínio):
+
+```nginx
+server {
+    listen 80;
+    server_name mei.digitalavance.com.br;
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Salve (Ctrl+O, Enter, Ctrl+X no nano).
+
+2. **Ativar o site e recarregar o Nginx:**
+
+```bash
+sudo ln -sf /etc/nginx/sites-available/mei-controle /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+3. **Confirmar que o app está rodando na porta 3001:**
+
+```bash
+pm2 status
+# ou, se não usa PM2:
+curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001
+# deve retornar 200 ou 302
+```
+
+Se `pm2 status` não mostrar o app rodando, inicie de novo a partir da pasta do projeto:
+
+```bash
+cd ~/mei-controle
+NODE_ENV=production pm2 start server/index.js --name mei-controle
+pm2 save
+```
+
+Depois disso, acesse de novo `http://mei.digitalavance.com.br` (ou o seu domínio). Para usar **HTTPS**, depois de funcionar em HTTP você pode instalar o Certbot e gerar o certificado:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d mei.digitalavance.com.br
+```
+
+---
+
 ## 2. Preparar o projeto para deploy
 
 ### 2.1 Enviar o código para o GitHub
@@ -58,16 +167,13 @@ O backend usa variáveis de ambiente. Na Hostinger você vai configurá-las no p
 Antes de subir, vale testar o build e o servidor em modo produção no seu computador:
 
 ```bash
-# Na raiz do projeto (pasta meipro)
-npm install
-npm run build
+# Na raiz do projeto — instala tudo e gera dist/ (cria .env se não existir)
+npm run install:production
 
-# Instalar dependências do servidor
-cd server
-npm install
-cd ..
+# Ou, se já tiver .env configurado:
+npm run install:production -- --skip-env
 
-# Rodar em modo produção (servidor serve o frontend + API)
+# Subir o servidor (API + arquivos estáticos do React)
 set NODE_ENV=production
 node server/index.js
 ```
@@ -95,13 +201,18 @@ Acesse `http://localhost:3001`. Se a tela de login e a API funcionarem, o projet
 
 ### 4.3 Configurar build e start
 
-A Hostinger costuma pedir **comando de build** e **comando de start**. Use algo assim:
+A Hostinger costuma pedir **comando de build** e **comando de start**. Use o instalador unificado:
 
 - **Comando de build (Build command):**
   ```bash
-  npm install && npm run build && cd server && npm install && cd ..
+  npm run install:production -- --skip-env
   ```
-  (Instala dependências da raiz, gera o frontend em `dist/` e instala dependências do `server`.)
+  O `--skip-env` evita criar um `.env` no ambiente de build quando você já configurou `JWT_SECRET`, `BASE_URL`, etc. no painel (o `dotenv` não sobrescreve variáveis que o painel já injetou em tempo de execução).
+
+  Se preferir o fluxo manual (equivalente):
+  ```bash
+  npm install && npm run build && cd server && npm install --omit=dev && cd ..
+  ```
 
 - **Comando de start (Start command / Run command):**
   ```bash
@@ -185,7 +296,7 @@ Sempre que mudar o código:
 | 1 | Ter plano Hostinger com Node.js (Web Apps ou VPS) |
 | 2 | Subir o código no GitHub (sem `.env`, sem `node_modules`, sem SQLite no repositório) |
 | 3 | Criar aplicação Node.js na Hostinger e conectar o repositório |
-| 4 | Build: `npm install && npm run build && cd server && npm install && cd ..` |
+| 4 | Build: `npm run install:production -- --skip-env` (ou sem `--skip-env` se quiser gerar `.env` na primeira vez) |
 | 5 | Start: `NODE_ENV=production node server/index.js` |
 | 6 | Configurar variáveis: `NODE_ENV`, `JWT_SECRET`, `BASE_URL`, e opcionalmente Mercado Pago |
 | 7 | Fazer o primeiro deploy e trocar a senha do admin |

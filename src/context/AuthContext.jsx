@@ -24,7 +24,13 @@ export function AuthProvider({ children }) {
     }
     auth.me()
       .then(({ user }) => {
-        const u = { ...user, role: user.email === 'admin@meicontrole.com' ? 'super_admin' : (user.role || 'empresa') }
+        const u = {
+          ...user,
+          role: user.email === 'admin@meicontrole.com' ? 'super_admin' : (user.role || 'empresa'),
+          sidebar_permissions: Array.isArray(user.sidebar_permissions) ? user.sidebar_permissions : [],
+          pdv_logo_url: user.pdv_logo_url || '',
+          pdv_empresa_nome: user.pdv_empresa_nome || user.empresa || '',
+        }
         setUser(u)
         localStorage.setItem('user', JSON.stringify(u))
       })
@@ -38,7 +44,13 @@ export function AuthProvider({ children }) {
 
   const login = async (email, senha) => {
     const { user, token } = await auth.login(email, senha)
-    const u = { ...user, role: user.email === 'admin@meicontrole.com' ? 'super_admin' : (user.role || 'empresa') }
+    const u = {
+      ...user,
+      role: user.email === 'admin@meicontrole.com' ? 'super_admin' : (user.role || 'empresa'),
+      sidebar_permissions: Array.isArray(user.sidebar_permissions) ? user.sidebar_permissions : [],
+      pdv_logo_url: user.pdv_logo_url || '',
+      pdv_empresa_nome: user.pdv_empresa_nome || user.empresa || '',
+    }
     localStorage.setItem('token', token)
     localStorage.setItem('user', JSON.stringify(u))
     setUser(u)
@@ -48,8 +60,13 @@ export function AuthProvider({ children }) {
   const register = async (dados) => {
     const { user, token } = await auth.register(dados)
     localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(user))
-    setUser(user)
+    const u = {
+      ...user,
+      role: user.role || 'empresa',
+      sidebar_permissions: Array.isArray(user.sidebar_permissions) ? user.sidebar_permissions : [],
+    }
+    localStorage.setItem('user', JSON.stringify(u))
+    setUser(u)
   }
 
   const logout = () => {
@@ -58,9 +75,24 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  const updateUser = (novoUser) => {
-    setUser(novoUser)
-    localStorage.setItem('user', JSON.stringify(novoUser))
+  const updateUser = (patch) => {
+    setUser((prev) => {
+      const merged = { ...(prev || {}), ...patch }
+      if (!Array.isArray(merged.sidebar_permissions)) {
+        merged.sidebar_permissions = Array.isArray(prev?.sidebar_permissions) ? prev.sidebar_permissions : []
+      }
+      if (!('owner_user_id' in patch) && prev?.owner_user_id != null) {
+        merged.owner_user_id = prev.owner_user_id
+      }
+      if (!('pdv_logo_url' in patch) && prev?.pdv_logo_url) {
+        merged.pdv_logo_url = prev.pdv_logo_url
+      }
+      if (!('pdv_empresa_nome' in patch) && prev?.pdv_empresa_nome) {
+        merged.pdv_empresa_nome = prev.pdv_empresa_nome
+      }
+      localStorage.setItem('user', JSON.stringify(merged))
+      return merged
+    })
   }
 
   return (

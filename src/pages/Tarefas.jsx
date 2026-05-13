@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Check, Circle, X, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Plus, Trash2, Check, Circle, X, Calendar, Clock, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react'
 import { tarefas } from '../api/client'
 import InputData from '../components/InputData'
 
@@ -40,6 +40,9 @@ export default function TarefasPage() {
   const [data_limite, setDataLimite] = useState(hojeFormatado())
   const [hora, setHora] = useState('')
   const [tipo, setTipo] = useState('Trabalho')
+  const [buscaLista, setBuscaLista] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('todas')
+  const [filtroTipoLista, setFiltroTipoLista] = useState('todos')
 
   async function carregar() {
     setLoading(true)
@@ -90,6 +93,35 @@ export default function TarefasPage() {
   }
 
   const tarefasDoDia = list.filter((t) => t.data_limite === dataSelecionada)
+  const listaFiltrada = useMemo(() => {
+    const q = buscaLista.trim().toLowerCase()
+    return list
+      .filter((t) => {
+        if (filtroStatus === 'pendentes' && t.concluida) return false
+        if (filtroStatus === 'concluidas' && !t.concluida) return false
+        if (filtroTipoLista !== 'todos' && (t.tipo || 'Trabalho') !== filtroTipoLista) return false
+        if (!q) return true
+        const texto = [t.titulo, t.descricao, t.tipo, t.data_limite, t.hora].filter(Boolean).join(' ').toLowerCase()
+        return texto.includes(q)
+      })
+      .sort((a, b) => {
+        const da = a.data_limite || ''
+        const db = b.data_limite || ''
+        if (da !== db) return da.localeCompare(db)
+        return (b.id || 0) - (a.id || 0)
+      })
+  }, [list, buscaLista, filtroStatus, filtroTipoLista])
+
+  const datasComTarefa = useMemo(() => {
+    const s = new Set()
+    for (const t of list) {
+      if (!t.data_limite) continue
+      const d = String(t.data_limite).slice(0, 10)
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) s.add(d)
+    }
+    return s
+  }, [list])
+
   const diasCal = gerarDiasCalendario(calAno, calMes)
   const dataHojeStr = hojeFormatado()
 
@@ -129,6 +161,15 @@ export default function TarefasPage() {
     if (!dia) return false
     const str = `${calAno}-${String(calMes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
     return str === dataSelecionada
+  }
+
+  function diaChaveISO(dia) {
+    return `${calAno}-${String(calMes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+  }
+
+  function diaTemTarefaMarcada(dia) {
+    if (!dia) return false
+    return datasComTarefa.has(diaChaveISO(dia))
   }
 
   return (
@@ -172,13 +213,26 @@ export default function TarefasPage() {
               <div key={i} className="py-1">
                 {dia ? (
                   <button
+                    type="button"
                     onClick={() => selecionarDia(dia)}
-                    className={`w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-colors
+                    aria-label={
+                      diaTemTarefaMarcada(dia)
+                        ? `${dia} de ${MESES[calMes]} — há tarefas neste dia`
+                        : `${dia} de ${MESES[calMes]}`
+                    }
+                    className={`min-w-[2.25rem] h-9 px-1 inline-flex items-center justify-center gap-0.5 rounded-lg text-sm font-medium transition-colors
                       ${ehSelecionado(dia) ? 'bg-blue-700 text-white' : ''}
                       ${!ehSelecionado(dia) && ehHoje(dia) ? 'bg-slate-600/60 text-white' : ''}
                       ${!ehSelecionado(dia) && !ehHoje(dia) ? 'text-white hover:bg-sidebar-hover/50' : ''}`}
                   >
-                    {dia}
+                    <span>{dia}</span>
+                    {diaTemTarefaMarcada(dia) ? (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
+                        title="Há tarefa(s) neste dia"
+                        aria-hidden
+                      />
+                    ) : null}
                   </button>
                 ) : (
                   <span />
@@ -215,6 +269,122 @@ export default function TarefasPage() {
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-card-bg border border-card-border p-4 lg:p-6">
+          <div className="flex flex-col gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Filter className="w-5 h-5 text-slate-400 shrink-0" />
+                Todas as tarefas
+              </h2>
+              <span className="text-sm text-slate-500">
+                {listaFiltrada.length === list.length
+                  ? `${list.length} registro(s)`
+                  : `${listaFiltrada.length} de ${list.length}`}
+              </span>
+            </div>
+            <div className="flex flex-col lg:flex-row gap-3">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                <input
+                  type="search"
+                  value={buscaLista}
+                  onChange={(e) => setBuscaLista(e.target.value)}
+                  placeholder="Buscar por título, descrição, tipo, data ou hora…"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[#0d1117] border border-card-border text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  aria-label="Buscar tarefas"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <select
+                  value={filtroStatus}
+                  onChange={(e) => setFiltroStatus(e.target.value)}
+                  className="px-3 py-2.5 rounded-lg bg-[#0d1117] border border-card-border text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[140px]"
+                  aria-label="Filtrar por status"
+                >
+                  <option value="todas">Status: todas</option>
+                  <option value="pendentes">Pendentes</option>
+                  <option value="concluidas">Concluídas</option>
+                </select>
+                <select
+                  value={filtroTipoLista}
+                  onChange={(e) => setFiltroTipoLista(e.target.value)}
+                  className="px-3 py-2.5 rounded-lg bg-[#0d1117] border border-card-border text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[140px]"
+                  aria-label="Filtrar por tipo"
+                >
+                  <option value="todos">Tipo: todos</option>
+                  <option value="Financeiro">Financeiro</option>
+                  <option value="Trabalho">Trabalho</option>
+                  <option value="Pessoal">Pessoal</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="text-slate-400 py-6">Carregando…</p>
+          ) : list.length === 0 ? (
+            <p className="text-slate-400 py-6">Nenhuma tarefa cadastrada.</p>
+          ) : listaFiltrada.length === 0 ? (
+            <p className="text-slate-400 py-6">Nenhuma tarefa corresponde aos filtros.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-card-border/80">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-card-border bg-sidebar-hover/20 text-left text-slate-400">
+                    <th className="p-3 w-10" />
+                    <th className="p-3">Título</th>
+                    <th className="p-3 hidden md:table-cell">Descrição</th>
+                    <th className="p-3 whitespace-nowrap">Data limite</th>
+                    <th className="p-3 hidden sm:table-cell">Hora</th>
+                    <th className="p-3 hidden lg:table-cell">Tipo</th>
+                    <th className="p-3 w-24 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listaFiltrada.map((item) => (
+                    <tr key={item.id} className="border-b border-card-border/50 hover:bg-sidebar-hover/20">
+                      <td className="p-3 align-top">
+                        <button
+                          type="button"
+                          onClick={() => toggleConcluida(item)}
+                          className={item.concluida ? 'text-emerald-400' : 'text-slate-400 hover:text-emerald-400'}
+                          title={item.concluida ? 'Marcar pendente' : 'Marcar concluída'}
+                        >
+                          {item.concluida ? <Check className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+                        </button>
+                      </td>
+                      <td className="p-3 align-top">
+                        <span className={item.concluida ? 'text-slate-400 line-through' : 'text-white font-medium'}>
+                          {item.titulo || '—'}
+                        </span>
+                        <p className="md:hidden text-xs text-slate-500 mt-1">
+                          {[item.tipo, item.hora].filter(Boolean).join(' • ') || '—'}
+                        </p>
+                      </td>
+                      <td className="p-3 align-top text-slate-400 hidden md:table-cell max-w-[220px]">
+                        <span className="line-clamp-2">{item.descricao && item.descricao !== item.titulo ? item.descricao : '—'}</span>
+                      </td>
+                      <td className="p-3 align-top text-slate-300 whitespace-nowrap">{formatDate(item.data_limite)}</td>
+                      <td className="p-3 align-top text-slate-400 hidden sm:table-cell">{item.hora || '—'}</td>
+                      <td className="p-3 align-top text-slate-400 hidden lg:table-cell">{item.tipo || '—'}</td>
+                      <td className="p-3 align-top text-right">
+                        <button
+                          type="button"
+                          onClick={() => excluir(item.id)}
+                          className="inline-flex p-2 rounded text-slate-400 hover:text-red-400"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

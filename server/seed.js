@@ -5,20 +5,23 @@
 const db = require('./db')
 const bcrypt = require('bcryptjs')
 
-function dataAtual() {
-  return new Date().toISOString().slice(0, 10)
+/** Referência do mês corrente (datas alinhadas ao dashboard “Este mês”). */
+function mesRef() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const mo = now.getMonth()
+  const dia = now.getDate()
+  const ultimo = new Date(y, mo + 1, 0).getDate()
+  return { y, m: mo, dia, ultimo }
 }
 
-function dataFutura(dias) {
-  const d = new Date()
-  d.setDate(d.getDate() + dias)
-  return d.toISOString().slice(0, 10)
+function diaMes(ref, d) {
+  const day = Math.min(Math.max(1, d), ref.ultimo)
+  return `${ref.y}-${String(ref.m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-function dataPassada(dias) {
-  const d = new Date()
-  d.setDate(d.getDate() - dias)
-  return d.toISOString().slice(0, 10)
+function refDia(ref, delta) {
+  return diaMes(ref, ref.dia + delta)
 }
 
 async function run() {
@@ -33,7 +36,8 @@ async function run() {
     console.log('Usuário de teste criado: teste@meicontrole.com / teste123')
   }
   const uid = user.id
-  console.log(`Inserindo dados para user_id=${uid}...`)
+  const ref = mesRef()
+  console.log(`Inserindo dados para user_id=${uid} (mês ${ref.y}-${String(ref.m + 1).padStart(2, '0')})...`)
 
   // Remove dados existentes do usuário (ordem por FKs)
   db.prepare('DELETE FROM estoque_movimentacoes WHERE user_id = ?').run(uid)
@@ -78,9 +82,9 @@ async function run() {
 
   // 3 Entradas
   const entradasData = [
-    { valor: 500, descricao: 'Venda serviço consultoria', data: dataAtual(), status: 'Recebido', forma: 'PIX', cliente_id: clienteIds[0] },
-    { valor: 1200, descricao: 'Venda produto lote', data: dataPassada(2), status: 'Recebido', forma: 'Transferência', cliente_id: clienteIds[1] },
-    { valor: 350, descricao: 'Serviço de manutenção', data: dataPassada(5), status: 'Pendente', forma: 'Dinheiro', cliente_id: clienteIds[2] },
+    { valor: 500, descricao: 'Venda serviço consultoria', data: refDia(ref, 0), status: 'Recebido', forma: 'PIX', cliente_id: clienteIds[0] },
+    { valor: 1200, descricao: 'Venda produto lote', data: refDia(ref, -2), status: 'Recebido', forma: 'Transferência', cliente_id: clienteIds[1] },
+    { valor: 350, descricao: 'Serviço de manutenção', data: refDia(ref, -5), status: 'Pendente', forma: 'Dinheiro', cliente_id: clienteIds[2] },
   ]
   const insEntrada = ins('INSERT INTO entradas (user_id, valor, descricao, data, status, forma_pagamento, cliente_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
   entradasData.forEach((e) => insEntrada.run(uid, e.valor, e.descricao, e.data, e.status, e.forma, e.cliente_id))
@@ -88,9 +92,9 @@ async function run() {
 
   // 3 Gastos
   const gastosData = [
-    { valor: 150, descricao: 'Material de escritório', categoria: 'Administrativo', data: dataAtual() },
-    { valor: 280, descricao: 'Energia elétrica', categoria: 'Utilidades', data: dataPassada(3) },
-    { valor: 95, descricao: 'Combustível', categoria: 'Transporte', data: dataPassada(7) },
+    { valor: 150, descricao: 'Material de escritório', categoria: 'Administrativo', data: refDia(ref, 0) },
+    { valor: 280, descricao: 'Energia elétrica', categoria: 'Utilidades', data: refDia(ref, -3) },
+    { valor: 95, descricao: 'Combustível', categoria: 'Transporte', data: refDia(ref, -7) },
   ]
   const insGasto = ins('INSERT INTO gastos (user_id, valor, descricao, categoria, data) VALUES (?, ?, ?, ?, ?)')
   gastosData.forEach((g) => insGasto.run(uid, g.valor, g.descricao, g.categoria, g.data))
@@ -98,9 +102,9 @@ async function run() {
 
   // 3 Custos
   const custosData = [
-    { valor: 89.90, descricao: 'DAS - MEI', vencimento: dataFutura(5), pago: 0 },
-    { valor: 150, descricao: 'Aluguel', vencimento: dataFutura(10), pago: 0 },
-    { valor: 45, descricao: 'Internet', vencimento: dataFutura(15), pago: 1 },
+    { valor: 89.90, descricao: 'DAS - MEI', vencimento: diaMes(ref, Math.min(20, ref.ultimo)), pago: 0 },
+    { valor: 150, descricao: 'Aluguel', vencimento: diaMes(ref, Math.min(10, ref.ultimo)), pago: 0 },
+    { valor: 45, descricao: 'Internet', vencimento: diaMes(ref, Math.min(15, ref.ultimo)), pago: 1 },
   ]
   const insCusto = ins('INSERT INTO custos (user_id, valor, descricao, vencimento, pago) VALUES (?, ?, ?, ?, ?)')
   custosData.forEach((c) => insCusto.run(uid, c.valor, c.descricao, c.vencimento, c.pago))
@@ -108,9 +112,9 @@ async function run() {
 
   // 3 Poupança
   const poupancaData = [
-    { valor: 200, descricao: 'Reserva de emergência', data: dataAtual(), tipo: 'Reserva' },
-    { valor: 500, descricao: 'Aplicação CDB', data: dataPassada(1), tipo: 'Investimento' },
-    { valor: 150, descricao: 'Meta férias', data: dataPassada(10), tipo: 'Poupança' },
+    { valor: 200, descricao: 'Reserva de emergência', data: refDia(ref, 0), tipo: 'Reserva' },
+    { valor: 500, descricao: 'Aplicação CDB', data: refDia(ref, -1), tipo: 'Investimento' },
+    { valor: 150, descricao: 'Meta férias', data: refDia(ref, -10), tipo: 'Poupança' },
   ]
   const insPoupanca = ins('INSERT INTO poupanca (user_id, valor, descricao, data, tipo) VALUES (?, ?, ?, ?, ?)')
   poupancaData.forEach((p) => insPoupanca.run(uid, p.valor, p.descricao, p.data, p.tipo))
@@ -118,9 +122,9 @@ async function run() {
 
   // 3 Vendas (vinculadas a clientes)
   const vendasData = [
-    { cliente_id: clienteIds[0], valor: 800, data: dataAtual(), descricao: 'Venda produto A - 10 un' },
-    { cliente_id: clienteIds[1], valor: 1200, data: dataPassada(1), descricao: 'Serviço completo' },
-    { cliente_id: clienteIds[2], valor: 450, data: dataPassada(4), descricao: 'Venda produto B - 5 un' },
+    { cliente_id: clienteIds[0], valor: 800, data: refDia(ref, 0), descricao: 'Venda produto A - 10 un' },
+    { cliente_id: clienteIds[1], valor: 1200, data: refDia(ref, -1), descricao: 'Serviço completo' },
+    { cliente_id: clienteIds[2], valor: 450, data: refDia(ref, -4), descricao: 'Venda produto B - 5 un' },
   ]
   const insVenda = ins('INSERT INTO vendas (user_id, cliente_id, valor, data, descricao) VALUES (?, ?, ?, ?, ?)')
   vendasData.forEach((v) => insVenda.run(uid, v.cliente_id, v.valor, v.data, v.descricao))
@@ -128,9 +132,9 @@ async function run() {
 
   // 3 Tarefas
   const tarefasData = [
-    { titulo: 'Pagar DAS', descricao: 'Pagamento do DAS até dia 20', data: dataFutura(7), hora: '10:00', tipo: 'Financeiro' },
-    { titulo: 'Reunião com cliente', descricao: 'Apresentar proposta', data: dataFutura(2), hora: '14:30', tipo: 'Trabalho' },
-    { titulo: 'Organizar estoque', descricao: 'Fazer inventário mensal', data: dataFutura(5), hora: null, tipo: 'Trabalho', concluida: 1 },
+    { titulo: 'Pagar DAS', descricao: 'Pagamento do DAS até dia 20', data: refDia(ref, 7), hora: '10:00', tipo: 'Financeiro' },
+    { titulo: 'Reunião com cliente', descricao: 'Apresentar proposta', data: refDia(ref, 2), hora: '14:30', tipo: 'Trabalho' },
+    { titulo: 'Organizar estoque', descricao: 'Fazer inventário mensal', data: refDia(ref, 5), hora: null, tipo: 'Trabalho', concluida: 1 },
   ]
   const insTarefa = ins('INSERT INTO tarefas (user_id, titulo, descricao, data_limite, hora, tipo, concluida) VALUES (?, ?, ?, ?, ?, ?, ?)')
   tarefasData.forEach((t) => insTarefa.run(uid, t.titulo, t.descricao, t.data, t.hora, t.tipo, t.concluida || 0))
@@ -138,9 +142,9 @@ async function run() {
 
   // 3 Movimentações de estoque
   const movData = [
-    { produto_id: produtoIds[0], qtd: 20, tipo: 'entrada', descricao: 'Compra fornecedor', data: dataAtual() },
-    { produto_id: produtoIds[1], qtd: 5, tipo: 'saida', descricao: 'Venda cliente', data: dataPassada(1) },
-    { produto_id: produtoIds[2], qtd: 50, tipo: 'entrada', descricao: 'Reposição estoque', data: dataPassada(3) },
+    { produto_id: produtoIds[0], qtd: 20, tipo: 'entrada', descricao: 'Compra fornecedor', data: refDia(ref, 0) },
+    { produto_id: produtoIds[1], qtd: 5, tipo: 'saida', descricao: 'Venda cliente', data: refDia(ref, -1) },
+    { produto_id: produtoIds[2], qtd: 50, tipo: 'entrada', descricao: 'Reposição estoque', data: refDia(ref, -3) },
   ]
   const insMov = ins('INSERT INTO estoque_movimentacoes (user_id, produto_id, quantidade, tipo, descricao, data) VALUES (?, ?, ?, ?, ?, ?)')
   const updProduto = ins('UPDATE produtos SET estoque_atual = ? WHERE id = ? AND user_id = ?')
@@ -155,7 +159,7 @@ async function run() {
   })
   console.log('  3 movimentações de estoque inseridas')
 
-  console.log('\nSeed concluído! Faça login com uma conta empresa para ver os dados.')
+  console.log('\nSeed concluído! teste@meicontrole.com / teste123 — ou rode npm run seed:demo para empresa demo enxuta.')
 }
 
 run().catch((e) => {

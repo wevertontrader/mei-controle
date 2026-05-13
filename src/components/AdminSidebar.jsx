@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Building2, CreditCard, Settings, LogOut, Shield } from 'lucide-react'
+import { LayoutDashboard, Building2, CreditCard, BookOpen, Settings, LogOut, Shield } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export default function AdminSidebar() {
@@ -54,6 +54,17 @@ export default function AdminSidebar() {
         >
           <CreditCard className="w-5 h-5" />
           Planos
+        </NavLink>
+        <NavLink
+          to="/admin/tutoriais"
+          className={({ isActive }) =>
+            `flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-1 ${
+              isActive ? 'bg-amber-600/30 text-amber-400' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`
+          }
+        >
+          <BookOpen className="w-5 h-5" />
+          Tutoriais
         </NavLink>
         <NavLink
           to="/admin/configuracoes"

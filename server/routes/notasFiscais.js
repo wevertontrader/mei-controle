@@ -21,7 +21,7 @@ function list(req, res) {
     LEFT JOIN clientes c ON n.cliente_id = c.id
     WHERE n.user_id = ?
     ORDER BY n.data DESC, n.id DESC
-  `).all(req.user.id)
+  `).all(req.user.empresaUserId)
   const list = rows.map(r => ({
     ...r,
     cliente_nome: r.cliente_nome || r.cliente_nome_join || '-',
@@ -33,18 +33,18 @@ router.get('', list)
 
 router.post('/', (req, res) => {
   const { data, cliente_id, cliente_nome, descricao, valor, status } = req.body
-  const numero = nextNumero(req.user.id)
+  const numero = nextNumero(req.user.empresaUserId)
   const dataStr = (data || '').slice(0, 10) || new Date().toISOString().slice(0, 10)
   const statusVal = status || 'Pendente'
   let nomeCliente = cliente_nome || ''
   if (cliente_id) {
-    const c = db.prepare('SELECT nome FROM clientes WHERE id = ? AND user_id = ?').get(cliente_id, req.user.id)
+    const c = db.prepare('SELECT nome FROM clientes WHERE id = ? AND user_id = ?').get(cliente_id, req.user.empresaUserId)
     if (c) nomeCliente = c.nome
   }
   const r = db.prepare(`
     INSERT INTO notas_fiscais (user_id, numero, data, cliente_id, cliente_nome, descricao, status, valor)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(req.user.id, numero, dataStr, cliente_id || null, nomeCliente, descricao || '', statusVal, parseFloat(valor) || 0)
+  `).run(req.user.empresaUserId, numero, dataStr, cliente_id || null, nomeCliente, descricao || '', statusVal, parseFloat(valor) || 0)
   const row = db.prepare('SELECT * FROM notas_fiscais WHERE id = ?').get(r.lastInsertRowid)
   res.status(201).json(row)
 })
@@ -55,13 +55,13 @@ router.patch('/:id/status', (req, res) => {
     return res.status(400).json({ error: 'Status inválido' })
   }
   db.prepare('UPDATE notas_fiscais SET status = ? WHERE id = ? AND user_id = ?')
-    .run(status, req.params.id, req.user.id)
+    .run(status, req.params.id, req.user.empresaUserId)
   const row = db.prepare('SELECT * FROM notas_fiscais WHERE id = ?').get(req.params.id)
   res.json(row || {})
 })
 
 router.delete('/:id', (req, res) => {
-  const r = db.prepare('DELETE FROM notas_fiscais WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id)
+  const r = db.prepare('DELETE FROM notas_fiscais WHERE id = ? AND user_id = ?').run(req.params.id, req.user.empresaUserId)
   if (r.changes === 0) return res.status(404).json({ error: 'Nota não encontrada' })
   res.json({ ok: true })
 })

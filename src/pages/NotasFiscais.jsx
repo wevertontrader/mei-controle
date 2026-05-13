@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Plus, Download, Trash2 } from 'lucide-react'
+import { Plus, Download, Trash2, ExternalLink } from 'lucide-react'
 import { notasFiscais, clientes } from '../api/client'
+import InputData from '../components/InputData'
+import { isValidIsoYmd } from '../utils/dateBr'
 
 function formatMoney(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
@@ -14,7 +16,18 @@ function formatDate(s) {
   return d.toLocaleDateString('pt-BR')
 }
 
-const STATUS_LABEL = { Emitida: 'Emitida', Pendente: 'Pendente', Cancelada: 'Cancelada' }
+const LINKS_EMISSAO_OFICIAL = [
+  {
+    label: 'NFS-e — serviços',
+    hint: 'Nota Fiscal de Serviço eletrônica (gov.br)',
+    href: 'https://www.gov.br/nfse/pt-br',
+  },
+  {
+    label: 'NF-e — mercadorias',
+    hint: 'Portal da Nota Fiscal eletrônica (Receita Federal)',
+    href: 'https://www.nfe.fazenda.gov.br/portal/principal.aspx',
+  },
+]
 const STATUS_CLASS = {
   Emitida: 'bg-emerald-500/20 text-emerald-400',
   Pendente: 'bg-amber-500/20 text-amber-400',
@@ -64,6 +77,10 @@ export default function NotasFiscais() {
   function handleSubmit(e) {
     e.preventDefault()
     setErro('')
+    if (!form.data || !isValidIsoYmd(form.data)) {
+      setErro('Informe a data da nota no formato DD/MM/AAAA.')
+      return
+    }
     const payload = {
       data: form.data,
       cliente_id: form.cliente_id || null,
@@ -101,16 +118,35 @@ export default function NotasFiscais() {
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-white">Notas Fiscais</h1>
-          <p className="text-slate-400 mt-1">Emissão e controle de NFS-e.</p>
+          <p className="text-slate-400 mt-1">Controle interno de NFS-e. Use os portais oficiais abaixo para emitir notas junto ao governo.</p>
         </div>
         <button
           onClick={abrirModal}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium shrink-0"
         >
           <Plus className="w-5 h-5" />
-          Emitir Nota
+          Registrar no app
         </button>
       </header>
+
+      <section className="mb-6 rounded-xl border border-card-border bg-card-bg p-4">
+        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Emissão oficial — abre em nova aba</p>
+        <div className="flex flex-wrap gap-2">
+          {LINKS_EMISSAO_OFICIAL.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={link.hint}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-card-border bg-[#0d1117] text-slate-200 text-sm font-medium hover:border-blue-500/50 hover:text-white hover:bg-blue-500/10 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4 shrink-0 text-blue-400" aria-hidden />
+              {link.label}
+            </a>
+          ))}
+        </div>
+      </section>
 
       {erro && <div className="mb-4 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">{erro}</div>}
 
@@ -118,7 +154,7 @@ export default function NotasFiscais() {
         {loading ? (
           <div className="p-8 text-center text-slate-400">Carregando...</div>
         ) : list.length === 0 ? (
-          <div className="p-8 text-center text-slate-400">Nenhuma nota fiscal. Clique em Emitir Nota para adicionar.</div>
+          <div className="p-8 text-center text-slate-400">Nenhuma nota registrada. Use o botão Registrar no app ou os links oficiais acima.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -174,17 +210,17 @@ export default function NotasFiscais() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-xl border border-card-border w-full max-w-md shadow-xl">
             <div className="p-6 border-b border-card-border">
-              <h2 className="text-lg font-semibold text-white">Emitir Nota</h2>
+              <h2 className="text-lg font-semibold text-white">Registrar nota no app</h2>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Data</label>
-                <input
-                  type="date"
+                <InputData
                   value={form.data}
-                  onChange={(e) => setForm({ ...form, data: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg bg-[#0d1117] border border-card-border text-white"
+                  onChange={(iso) => setForm({ ...form, data: iso })}
                   required
+                  className="w-full px-4 py-2 rounded-lg bg-[#0d1117] border border-card-border text-white placeholder-slate-500"
+                  placeholder="DD/MM/AAAA"
                 />
               </div>
               <div>
@@ -244,7 +280,7 @@ export default function NotasFiscais() {
                   type="submit"
                   className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium"
                 >
-                  Emitir
+                  Salvar
                 </button>
               </div>
             </form>

@@ -7,6 +7,7 @@ export default function Cadastro() {
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [empresa, setEmpresa] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
   const [senha, setSenha] = useState('')
   const [confirmar, setConfirmar] = useState('')
   const [erro, setErro] = useState('')
@@ -27,7 +28,7 @@ export default function Cadastro() {
     }
     setLoading(true)
     try {
-      await register({ nome, email, empresa, senha })
+      await register({ nome, email, empresa, senha, whatsapp: whatsapp.trim() || undefined })
       navigate('/dashboard', { replace: true })
     } catch (err) {
       setErro(err.message || 'Erro ao cadastrar')
@@ -95,6 +96,16 @@ export default function Cadastro() {
                 className="w-full px-4 py-3 rounded-lg bg-[#0d1117] border border-card-border text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Minha Empresa MEI"
                 required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">WhatsApp (opcional)</label>
+              <input
+                type="tel"
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg bg-[#0d1117] border border-card-border text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                placeholder="DDD + número — recebe mensagem de boas-vindas se a Evolution estiver configurada"
               />
             </div>
             <div>

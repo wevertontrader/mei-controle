@@ -1,62 +1,33 @@
 /**
- * Input de data no formato brasileiro DD/MM/YYYY.
+ * Input de data no formato brasileiro DD/MM/AAAA.
  * value e onChange usam YYYY-MM-DD internamente (para APIs).
  */
 import { useState, useEffect } from 'react'
-
-function isoParaBr(iso) {
-  if (!iso || iso.length < 10) return ''
-  const [y, m, d] = iso.slice(0, 10).split('-')
-  return `${d || ''}${d ? '/' : ''}${m || ''}${m ? '/' : ''}${y || ''}`
-}
-
-function brParaIso(br) {
-  const nums = br.replace(/\D/g, '')
-  if (nums.length < 8) return ''
-  const d = nums.slice(0, 2)
-  const m = nums.slice(2, 4)
-  const y = nums.slice(4, 8)
-  if (d.length === 2 && m.length === 2 && y.length === 4) {
-    const dia = parseInt(d, 10)
-    const mes = parseInt(m, 10)
-    const ano = parseInt(y, 10)
-    if (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12 && ano >= 1900 && ano <= 2100) {
-      return `${ano}-${m}-${d}`
-    }
-  }
-  return ''
-}
-
-function formatarDigitacao(v) {
-  const nums = v.replace(/\D/g, '')
-  if (nums.length <= 2) return nums
-  if (nums.length <= 4) return `${nums.slice(0, 2)}/${nums.slice(2)}`
-  return `${nums.slice(0, 2)}/${nums.slice(2, 4)}/${nums.slice(4, 8)}`
-}
+import { isoYmdToBr, brDigitsToIso, formatarDigitacaoDataBr } from '../utils/dateBr'
 
 export default function InputData({ value = '', onChange, required, className = '', placeholder = 'DD/MM/AAAA', ...rest }) {
-  const [texto, setTexto] = useState(isoParaBr(value))
+  const [texto, setTexto] = useState(isoYmdToBr(value))
 
   useEffect(() => {
-    setTexto(isoParaBr(value))
+    setTexto(isoYmdToBr(value))
   }, [value])
 
   function handleChange(e) {
     const v = e.target.value
-    const formatado = formatarDigitacao(v)
+    const formatado = formatarDigitacaoDataBr(v)
     setTexto(formatado)
-    const iso = brParaIso(formatado)
+    const iso = brDigitsToIso(formatado)
     if (iso) onChange(iso)
     else if (formatado.length === 0) onChange('')
   }
 
   function handleBlur() {
-    const iso = brParaIso(texto)
+    const iso = brDigitsToIso(texto)
     if (iso) {
-      setTexto(isoParaBr(iso))
+      setTexto(isoYmdToBr(iso))
       onChange(iso)
     } else if (texto.length > 0) {
-      setTexto(isoParaBr(value))
+      setTexto(isoYmdToBr(value))
     }
   }
 

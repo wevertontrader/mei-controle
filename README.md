@@ -28,7 +28,22 @@ C:\laragon\www\meipro\server\database\meipro.sqlite
 
 ## Como Rodar
 
-### 1. Instalar dependências
+### 1. Instalação (produção ou nova hospedagem)
+
+Na **raiz do repositório** (onde estão `package.json` e `install.sh`):
+
+```bash
+npm run install:production
+```
+
+Na **Hostinger** (build), com variáveis só no painel: `npm run install:production -- --skip-env`.
+
+Em **VPS Linux** com perguntas interativas e PM2: `./install.sh`  
+Em **Windows**: `powershell -ExecutionPolicy Bypass -File .\install.ps1`
+
+Detalhes: [DEPLOY-HOSTINGER.md](./DEPLOY-HOSTINGER.md)
+
+### 2. Instalar dependências (desenvolvimento manual)
 
 ```bash
 # Frontend
@@ -39,7 +54,7 @@ cd server
 npm install
 ```
 
-### 2. Iniciar o servidor (API)
+### 3. Iniciar o servidor (API)
 
 ```bash
 cd server
@@ -48,7 +63,7 @@ npm start
 
 O servidor roda em `http://localhost:3001`
 
-### 3. Iniciar o frontend
+### 4. Iniciar o frontend
 
 ```bash
 npm run dev
@@ -56,7 +71,7 @@ npm run dev
 
 O frontend roda em `http://localhost:5173`
 
-### 4. Acessar
+### 5. Acessar
 
 - **Landing:** http://localhost:5173
 - **Login:** http://localhost:5173/login

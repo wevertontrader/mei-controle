@@ -6,12 +6,17 @@ server/node_modules/
 dist/
 build/
 
+# Porta real do backend em dev (gerado ao subir o servidor)
+.dev-server-port
+
 # Ambiente
 .env
 .env.local
 .env.*.local
 
-# Banco de dados (não versionar dados em produção)
+# Uploads de usuários (logos)
+server/uploads/
+
 server/database/*.sqlite
 server/database/*.sqlite-shm
 server/database/*.sqlite-wal

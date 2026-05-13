@@ -65,6 +65,11 @@ export default function Login() {
                 placeholder="••••••••"
                 required
               />
+              <div className="text-right mt-1">
+                <Link to="/esqueci-senha" className="text-xs text-blue-400 hover:text-blue-300">
+                  Esqueci minha senha
+                </Link>
+              </div>
             </div>
             <button
               type="submit"

@@ -32,8 +32,10 @@ export default function AssinaturaPlanos() {
     setLoading(planoId)
     setErro('')
     try {
-      const { init_point } = await assinatura.checkout(planoId)
-      if (init_point) window.location.href = init_point
+      const data = await assinatura.checkout(planoId)
+      const url =
+        data.init_point || data.sandbox_init_point || data.initPoint || data.sandboxInitPoint
+      if (url) window.location.href = url
       else setErro('Não foi possível abrir o checkout.')
     } catch (e) {
       setErro(e.message || 'Erro ao processar. Tente novamente.')

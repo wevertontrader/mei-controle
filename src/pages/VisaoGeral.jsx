@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   RefreshCw,
   Filter,
@@ -11,6 +12,8 @@ import {
   ShoppingCart,
   BarChart3,
   Bell,
+  Timer,
+  Store,
 } from 'lucide-react'
 import {
   LineChart,
@@ -23,31 +26,54 @@ import {
   Legend,
 } from 'recharts'
 import { dashboard } from '../api/client'
+import { useAuth } from '../context/AuthContext'
+import { canAccessDashboardPath } from '../lib/sidebarAccess'
 
 function formatMoney(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 }
 
+const PERIODOS = [
+  { value: 'mes', label: 'Este mês' },
+  { value: 'mes_anterior', label: 'Mês passado' },
+  { value: 'trimestre', label: 'Este trimestre' },
+  { value: 'ano', label: 'Este ano' },
+]
+
 export default function VisaoGeral() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
+  const [periodo, setPeriodo] = useState('mes')
 
-  async function carregar() {
-    setLoading(true)
-    setErro('')
+  const carregar = useCallback(async (opts = {}) => {
+    const silent = !!opts.silent
+    if (!silent) {
+      setLoading(true)
+      setErro('')
+    }
     try {
-      const res = await dashboard.visaoGeral()
+      const res = await dashboard.visaoGeral({ periodo })
       setData(res)
     } catch (e) {
-      setErro(e.message)
-      setData(null)
+      if (!silent) {
+        setErro(e.message)
+        setData(null)
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
-  }
+  }, [periodo])
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar() }, [carregar])
+
+  useEffect(() => {
+    const fn = () => carregar({ silent: true })
+    window.addEventListener('financeiro-atualizado', fn)
+    return () => window.removeEventListener('financeiro-atualizado', fn)
+  }, [carregar])
 
   if (loading) {
     return (
@@ -65,13 +91,18 @@ export default function VisaoGeral() {
     )
   }
 
+  const trialEndsAt = user?.trial_ends_at ? new Date(user.trial_ends_at) : null
+  const trialExpired = trialEndsAt && trialEndsAt < new Date()
+  const trialDays = trialEndsAt ? Math.ceil((trialEndsAt - new Date()) / (1000 * 60 * 60 * 24)) : 0
+  const mostrarCardTrial = user?.role !== 'super_admin' && !trialExpired && trialDays > 0
+
   const metrics = [
     { title: 'Receita Bruta', value: formatMoney(data?.receitaBruta), color: 'text-emerald-400', icon: TrendingUp, bgIcon: 'bg-emerald-500/20' },
     { title: 'Despesas', value: formatMoney(data?.despesas), color: 'text-red-400', icon: TrendingDown, bgIcon: 'bg-red-500/20' },
     { title: 'Lucro Líquido', value: formatMoney(data?.lucroLiquido), color: 'text-emerald-400', icon: DollarSign, bgIcon: 'bg-emerald-500/20' },
     { title: 'ROI', value: (data?.roi || 0).toFixed(2) + '%', color: 'text-emerald-400', icon: Percent, bgIcon: 'bg-emerald-500/20' },
-    { title: 'Custos Pendentes (Mês)', value: formatMoney(data?.custosPendentes), color: 'text-amber-400', icon: FileText, bgIcon: 'bg-amber-500/20' },
-    { title: 'Superávit Diário (Dias Úteis)', value: formatMoney(data?.superavitDiario), color: 'text-emerald-400', icon: Calendar, bgIcon: 'bg-emerald-500/20' },
+    { title: 'Custos pendentes (no período)', value: formatMoney(data?.custosPendentes), color: 'text-amber-400', icon: FileText, bgIcon: 'bg-amber-500/20' },
+    { title: `Superávit / dia útil (${data?.diasUteisPeriodo ?? '—'} dias)`, value: formatMoney(data?.superavitDiario), color: 'text-emerald-400', icon: Calendar, bgIcon: 'bg-emerald-500/20' },
     { title: 'Quantidade de Vendas', value: String(data?.quantidadeVendas || 0), color: 'text-slate-300', icon: ShoppingCart, bgIcon: 'bg-slate-500/20' },
     { title: 'Ticket Médio', value: formatMoney(data?.ticketMedio), color: 'text-slate-300', icon: BarChart3, bgIcon: 'bg-slate-500/20' },
   ]
@@ -80,26 +111,55 @@ export default function VisaoGeral() {
     <div className="p-6 lg:p-8">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold text-white">Visão Geral</h1>
-        <p className="text-slate-400 mt-1">Seu resumo financeiro do período selecionado.</p>
+        <p className="text-slate-400 mt-1">
+          Resumo financeiro: <span className="text-slate-300">{data?.periodoLabel || 'Este mês'}</span>
+          {data?.periodoInicio && data?.periodoFim ? (
+            <span className="text-slate-500"> ({data.periodoInicio} a {data.periodoFim})</span>
+          ) : null}
+          .
+        </p>
       </header>
 
+      {mostrarCardTrial && (
+        <div className="mb-6 rounded-xl bg-emerald-500/15 border border-emerald-500/35 px-4 py-3 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-500/25 flex items-center justify-center shrink-0">
+            <Timer className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-emerald-300">Período de teste</p>
+            <p className="text-sm text-emerald-400/95 mt-0.5">
+              {trialDays} {trialDays === 1 ? 'dia restante' : 'dias restantes'} no seu trial. Assine um plano em Assinatura para continuar após o fim do período.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        <button onClick={carregar} className="p-2 rounded-lg bg-card-bg border border-card-border text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+        {canAccessDashboardPath(user, '/dashboard/vendas') && (
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard/vendas?pdv=1')}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+          >
+            <Store className="w-4 h-4 shrink-0" />
+            Abrir PDV
+          </button>
+        )}
+        <button type="button" onClick={carregar} className="p-2 rounded-lg bg-card-bg border border-card-border text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
           <RefreshCw className="w-4 h-4" />
         </button>
-        <button className="p-2 rounded-lg bg-card-bg border border-card-border text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+        <button type="button" className="p-2 rounded-lg bg-card-bg border border-card-border text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
           <Filter className="w-4 h-4" />
         </button>
-        <select className="px-3 py-2 rounded-lg bg-card-bg border border-card-border text-slate-300 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-          <option>Este Mês</option>
-          <option>Mês passado</option>
-          <option>Este trimestre</option>
-          <option>Este ano</option>
+        <select
+          value={periodo}
+          onChange={(e) => setPeriodo(e.target.value)}
+          className="px-3 py-2 rounded-lg bg-card-bg border border-card-border text-slate-300 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          {PERIODOS.map((p) => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
         </select>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-card-bg border border-card-border text-slate-400 text-sm">
-          <Calendar className="w-4 h-4" />
-          <span>Selecione um período</span>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

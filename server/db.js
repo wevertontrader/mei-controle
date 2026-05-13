@@ -187,6 +187,17 @@ function initDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS tutoriais (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titulo TEXT NOT NULL,
+      descricao TEXT,
+      url_video TEXT,
+      icon TEXT DEFAULT 'book-open',
+      ordem INTEGER DEFAULT 0,
+      ativo INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `)
 
   try { db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'empresa'`) } catch (_) {}
@@ -205,6 +216,15 @@ function initDatabase() {
   userPerfilCols.forEach(col => {
     try { db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`) } catch (_) {}
   })
+  try { db.exec(`ALTER TABLE users ADD COLUMN plano_id INTEGER`) } catch (_) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN proximo_pagamento TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN password_reset_token TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN password_reset_expires TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE vendas ADD COLUMN forma_pagamento TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE vendas ADD COLUMN itens_json TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN owner_user_id INTEGER REFERENCES users(id)`) } catch (_) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN sidebar_permissions TEXT`) } catch (_) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN logotipo_pdv TEXT`) } catch (_) {}
 
   const superAdmin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@meicontrole.com')
   if (!superAdmin) {
@@ -224,6 +244,22 @@ function initDatabase() {
       INSERT INTO planos (nome, slug, preco, dias, periodo, features, destaque, economia) VALUES
       ('Mensal', 'mensal', 29.90, 30, 'mês', '["Acesso completo ao sistema","Suporte por e-mail","Backup automático"]', 0, NULL),
       ('Anual', 'anual', 249.90, 365, 'ano', '["Tudo do plano Mensal","12 meses pelo preço de 10","Prioridade no suporte"]', 1, 'Economize 2 meses')
+    `).run()
+  }
+
+  const tutoriaisCount = db.prepare('SELECT COUNT(*) as c FROM tutoriais').get()?.c || 0
+  const tutoriaisJaSemeado = db.prepare('SELECT valor FROM configuracoes WHERE chave = ?').get('tutoriais_default_seeded')
+  if (tutoriaisCount === 0 && !tutoriaisJaSemeado?.valor) {
+    db.prepare(`
+      INSERT INTO tutoriais (titulo, descricao, url_video, icon, ordem, ativo) VALUES
+      ('Primeiros passos no MEI Controle', 'Conheça a interface e como registrar suas primeiras entradas e gastos.', NULL, 'book-open', 1, 1),
+      ('Financeiro completo', 'Aprenda a usar Entradas, Gastos, Custos e Poupança.', NULL, 'trending-up', 2, 1),
+      ('Cadastro de clientes e vendas', 'Como cadastrar clientes e registrar vendas.', NULL, 'users', 3, 1),
+      ('Produtos e estoque', 'Gestão de produtos e movimentações de estoque.', NULL, 'package', 4, 1)
+    `).run()
+    db.prepare(`
+      INSERT INTO configuracoes (chave, valor, updated_at) VALUES ('tutoriais_default_seeded', '1', datetime('now'))
+      ON CONFLICT(chave) DO UPDATE SET valor = '1', updated_at = datetime('now')
     `).run()
   }
 }

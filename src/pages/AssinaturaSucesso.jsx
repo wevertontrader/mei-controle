@@ -12,9 +12,9 @@ export default function AssinaturaSucesso() {
   const [erro, setErro] = useState('')
 
   useEffect(() => {
-    const payment_id = searchParams.get('payment_id')
+    const payment_id = searchParams.get('payment_id') || searchParams.get('collection_id') || undefined
     const external_reference = searchParams.get('external_reference')
-    const mpStatus = searchParams.get('status')
+    const mpStatus = searchParams.get('status') || searchParams.get('collection_status') || ''
 
     if (!external_reference) {
       setStatus('erro')
@@ -23,8 +23,18 @@ export default function AssinaturaSucesso() {
     }
 
     assinatura
-      .confirmar({ payment_id, external_reference, status: mpStatus })
-      .then(async () => {
+      .confirmar({
+        payment_id: payment_id || undefined,
+        external_reference,
+        status: mpStatus || undefined,
+        collection_status: searchParams.get('collection_status') || undefined,
+      })
+      .then(async (result) => {
+        if (!result?.ok) {
+          setStatus('erro')
+          setErro(result?.message || 'Não foi possível confirmar o pagamento como aprovado.')
+          return
+        }
         setStatus('ok')
         const { user } = await auth.me()
         updateUser(user)
