@@ -25,6 +25,7 @@ function refDia(ref, delta) {
 }
 
 async function run() {
+  await db.init()
   let user = db.prepare("SELECT id FROM users WHERE role = 'empresa' OR role IS NULL ORDER BY id LIMIT 1").get()
   if (!user) {
     const hash = await bcrypt.hash('teste123', 10)

@@ -246,9 +246,13 @@ Salve as variáveis.
 
 ### 4.6 Banco de dados (SQLite)
 
-- O projeto usa **SQLite** em `server/database/meipro.sqlite`.
+- O projeto usa **SQLite** em `server/database/meipro.sqlite`, via **sql.js** (motor SQLite em WebAssembly — **sem módulo nativo**). Isso evita falhas de build na Hostinger (`better-sqlite3` / GLIBC / `node-gyp` / permissão de symlink).
 - Na primeira execução, o backend cria as tabelas e um usuário admin.
 - Em Web Apps, o sistema de arquivos costuma ser persistente; o arquivo do SQLite fica no servidor. Faça backups pelo painel de arquivos ou por algum recurso de backup da Hostinger, se disponível.
+
+### 4.7 Se o deploy antigo falhou com `better-sqlite3` ou `GLIBC_2.29`
+
+Atualize o repositório (branch `main`) com a versão do código que usa **sql.js** em vez de **better-sqlite3**, faça **Redeploy** e mantenha o mesmo comando de build (`npm run install:production -- --skip-env` ou equivalente).
 
 **Admin padrão (após primeiro deploy):**
 

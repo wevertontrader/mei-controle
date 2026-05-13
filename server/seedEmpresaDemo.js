@@ -30,6 +30,7 @@ function diaMes(y, m, dia) {
 }
 
 async function run() {
+  await db.init()
   const hash = await bcrypt.hash(SENHA, 10)
   const planoRow = db.prepare("SELECT id, nome FROM planos WHERE slug = 'mensal' AND ativo = 1 LIMIT 1").get()
   const planoId = planoRow?.id ?? null
